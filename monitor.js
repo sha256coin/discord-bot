@@ -9,6 +9,7 @@ const STATE_FILE = path.join(__dirname, "state.json");
 const HISTORY = 100; // blocks of height -> hash kept for reorg detection
 const DAY_MS = 24 * 3600 * 1000;
 const STALL_REMINDER_MS = 3600 * 1000;
+const STALL_MESSAGE_TTL_MS = 30 * 60 * 1000; // stalled / resumed messages are deleted after 30 min
 
 const num = (v, d) => (Number.isFinite(Number(v)) && v !== "" && v !== undefined ? Number(v) : d);
 
@@ -152,6 +153,7 @@ function createMonitor({ rpc, cfg = configFromEnv(), load = loadState, save = sa
           title: state.stall.active ? "Chain still stalled" : "Chain stalled",
           text: `No new block for ${duration(age)}. Last block ${tipHeight.toLocaleString("en-US")}.`,
           blockHash: tipHash,
+          deleteAfterMs: STALL_MESSAGE_TTL_MS,
         });
         state.stall.lastAlert = now();
       }
@@ -163,6 +165,7 @@ function createMonitor({ rpc, cfg = configFromEnv(), load = loadState, save = sa
         title: "Blocks resumed",
         text: `New block at height ${tipHeight.toLocaleString("en-US")}.`,
         blockHash: tipHash,
+        deleteAfterMs: STALL_MESSAGE_TTL_MS,
       });
       state.stall.active = false;
     }

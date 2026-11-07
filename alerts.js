@@ -55,7 +55,14 @@ async function sendAlerts(client, alerts) {
     if (!id) continue;
     try {
       const channel = await client.channels.fetch(id);
-      await channel.send({ embeds: [buildAlertEmbed(a)] });
+      const msg = await channel.send({ embeds: [buildAlertEmbed(a)] });
+      // Short-lived alerts (stalled / blocks resumed) remove themselves so they
+      // do not clutter the channel. A bot restart drops the timer.
+      if (a.deleteAfterMs) {
+        setTimeout(() => {
+          msg.delete().catch((err) => console.error(`Could not delete alert "${a.title}":`, err.message));
+        }, a.deleteAfterMs).unref();
+      }
     } catch (err) {
       console.error(`Could not post alert "${a.title}":`, err.message);
     }
