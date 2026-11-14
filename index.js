@@ -7,6 +7,7 @@ const api = require("./explorer");
 const rpc = require("./rpc");
 const { createMonitor, duration } = require("./monitor");
 const { sendAlerts } = require("./alerts");
+const { createBlockHandler, startZmq } = require("./blocks");
 
 const monitor = createMonitor({ rpc: rpc.call });
 
@@ -166,7 +167,7 @@ const embed = new EmbedBuilder()
   .setTitle("SHA256Coin Network Stats")
   .setThumbnail(LOGO_URL)
   .setDescription([healthLine(health), tables].filter(Boolean).join("\n"))
-  .setFooter({ text: "Updates every 5 minutes" })
+  .setFooter({ text: "Updates on every new block" })
   .setTimestamp();
 
 if (process.env.EXPLORER_API) embed.setURL(process.env.EXPLORER_API);
@@ -198,6 +199,21 @@ client.once("clientReady", async () => {
 
   await runMonitor();
   await updateServerDescription();
+
+  // New blocks arrive over ZMQ: refresh the node health and the stats message
+  // right away. ZMQ_URL empty disables it; the crons below stay as the fallback.
+  const zmqUrl = process.env.ZMQ_URL ?? "tcp://127.0.0.1:28332";
+  if (zmqUrl) {
+    const handler = createBlockHandler({
+      getNodeHeight: async () => (await rpc.call("getblockcount")),
+      getExplorerHeight: () => api.getBlockCount(),
+      refresh: async () => {
+        await runMonitor();
+        await updateServerDescription();
+      },
+    });
+    startZmq(zmqUrl, handler.onBlock);
+  }
 
 // node checks every 2 minutes, the stats message every 5
   cron.schedule("*/2 * * * *", runMonitor);
